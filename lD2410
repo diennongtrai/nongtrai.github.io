@@ -1,0 +1,60 @@
+<!-- Đoạn HTML bắt đầu từ đây -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESP32 Dashboard</title>
+  <style>
+    body { font-family: Arial; background: #f0f0f0; padding: 20px; }
+    .status { margin-bottom: 20px; }
+    .sensor-box { background: #fff; padding: 10px; margin-bottom: 10px; border-radius: 8px; box-shadow: 0 0 5px #ccc; }
+    button { padding: 6px 12px; margin-left: 10px; }
+  </style>
+</head>
+<body>
+  <h2>ESP32 Dashboard (MQTT)</h2>
+  <div class="status">
+    <b>MQTT Trạng thái:</b> <span id="mqttStatus">Chưa kết nối</span>
+  </div>
+
+  <h3>Điều khiển LED</h3>
+  <div class="sensor-box">
+    Sensor 1:
+    <button onclick="controlLed('sensor_1', 1)">Bật</button>
+    <button onclick="controlLed('sensor_1', 0)">Tắt</button>
+  </div>
+  <div class="sensor-box">
+    Sensor 2:
+    <button onclick="controlLed('sensor_2', 1)">Bật</button>
+    <button onclick="controlLed('sensor_2', 0)">Tắt</button>
+  </div>
+
+  <h3>Dữ liệu Sensor</h3>
+  <pre id="sensorData">Đang chờ dữ liệu...</pre>
+
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script>
+    const client = mqtt.connect("wss://5535a388c0214921bd01737fcf390158.s1.eu.hivemq.cloud:8884/mqtt", {
+      username: "Famer_smarthome123",
+      password: "@Tmh12345678"
+    });
+
+    client.on("connect", () => {
+      document.getElementById("mqttStatus").textContent = "Đã kết nối";
+      ["sensor_1", "sensor_2", "sensor_3"].forEach(topic => client.subscribe(topic));
+    });
+
+    client.on("message", (topic, message) => {
+      const msg = JSON.parse(message.toString());
+      document.getElementById("sensorData").textContent += `\n[${topic}] M:${msg.moving} S:${msg.stationary} LED:${msg.led}`;
+    });
+
+    function controlLed(topic, state) {
+      const payload = JSON.stringify({ led: state });
+      client.publish(topic, payload);
+    }
+  </script>
+</body>
+</html>
+<!-- HTML kết thúc tại đây -->
