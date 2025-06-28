@@ -8,19 +8,13 @@
     body { font-family: Arial; background: #f0f0f0; padding: 20px; }
     .status { margin-bottom: 20px; }
     .sensor-box {
-      background: #fff;
-      padding: 10px;
-      margin-bottom: 10px;
-      border-radius: 8px;
-      box-shadow: 0 0 5px #ccc;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      background: #fff; padding: 10px; margin-bottom: 10px;
+      border-radius: 8px; box-shadow: 0 0 5px #ccc;
+      display: flex; justify-content: space-between; align-items: center;
     }
     button { padding: 6px 12px; margin-left: 5px; }
     .led-icon {
-      font-size: 24px;
-      margin-left: 10px;
+      font-size: 24px; margin-left: 10px;
       transition: color 0.3s;
     }
     .led-on { color: gold; }
@@ -28,17 +22,19 @@
     .online { color: green; }
     .offline { color: red; }
     table {
-      width: 100%;
-      border-collapse: collapse;
-      background: #fff;
-      margin-top: 15px;
+      width: 100%; border-collapse: collapse;
+      background: #fff; margin-top: 15px;
     }
     th, td {
       border: 1px solid #ccc;
-      padding: 8px;
-      text-align: center;
+      padding: 8px; text-align: center;
     }
     th { background-color: #f2f2f2; }
+    canvas {
+      background: #fff; padding: 10px;
+      margin-top: 20px; border-radius: 8px;
+      box-shadow: 0 0 5px #aaa;
+    }
   </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
@@ -83,7 +79,14 @@
     <tbody></tbody>
   </table>
 
+  <h3>Biểu đồ Sensor 1</h3>
+  <canvas id="chart_sensor_1" width="600" height="250"></canvas>
+
+  <h3>Biểu đồ Sensor 2</h3>
+  <canvas id="chart_sensor_2" width="600" height="250"></canvas>
+
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     const mqttStatus = document.getElementById("mqttStatus");
     const wifiStatus = document.getElementById("wifiStatus");
@@ -93,6 +96,42 @@
       username: "Famer_smarthome123",
       password: "@Tmh12345678"
     });
+
+    const chartData = {
+      sensor_1: {
+        labels: [],
+        moving: [],
+        stationary: []
+      },
+      sensor_2: {
+        labels: [],
+        moving: [],
+        stationary: []
+      }
+    };
+
+    const charts = {
+      sensor_1: new Chart(document.getElementById("chart_sensor_1").getContext("2d"), {
+        type: 'line',
+        data: {
+          labels: chartData.sensor_1.labels,
+          datasets: [
+            { label: "Moving", data: chartData.sensor_1.moving, borderColor: "red", fill: false },
+            { label: "Stationary", data: chartData.sensor_1.stationary, borderColor: "blue", fill: false }
+          ]
+        }
+      }),
+      sensor_2: new Chart(document.getElementById("chart_sensor_2").getContext("2d"), {
+        type: 'line',
+        data: {
+          labels: chartData.sensor_2.labels,
+          datasets: [
+            { label: "Moving", data: chartData.sensor_2.moving, borderColor: "red", fill: false },
+            { label: "Stationary", data: chartData.sensor_2.stationary, borderColor: "blue", fill: false }
+          ]
+        }
+      })
+    };
 
     client.on("connect", () => {
       mqttStatus.textContent = "Đã kết nối";
@@ -106,32 +145,37 @@
     client.on("message", (topic, message) => {
       try {
         const payload = JSON.parse(message.toString());
-        const led = payload.led;
-        const moving = payload.moving ?? '-';
-        const stationary = payload.stationary ?? '-';
         const device = topic.replace("/control", "");
-
+        const led = payload.led;
+        const moving = payload.moving ?? 0;
+        const stationary = payload.stationary ?? 0;
         const icon = document.getElementById("icon_" + device);
+        const time = new Date().toLocaleTimeString();
+
         if (icon) {
           icon.classList.toggle("led-on", led == 1);
           icon.classList.toggle("led-off", led == 0);
         }
 
-        const time = new Date().toLocaleTimeString();
-
+        // Update table
         const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${time}</td>
-          <td>${device}</td>
-          <td>${moving}</td>
-          <td>${stationary}</td>
-          <td>${led == 1 ? 'Bật' : 'Tắt'}</td>
-        `;
+        row.innerHTML = `<td>${time}</td><td>${device}</td><td>${moving}</td><td>${stationary}</td><td>${led == 1 ? 'Bật' : 'Tắt'}</td>`;
         tableBody.appendChild(row);
+        if (tableBody.rows.length > 50) tableBody.deleteRow(0);
 
-        // Giới hạn số dòng (ví dụ: 50 dòng)
-        if (tableBody.rows.length > 50) {
-          tableBody.deleteRow(0);
+        // Update chart
+        if (charts[device]) {
+          const chart = charts[device];
+          const data = chartData[device];
+          data.labels.push(time);
+          data.moving.push(moving);
+          data.stationary.push(stationary);
+          if (data.labels.length > 20) {
+            data.labels.shift();
+            data.moving.shift();
+            data.stationary.shift();
+          }
+          chart.update();
         }
       } catch (err) {
         console.error("Lỗi phân tích dữ liệu:", err);
@@ -143,7 +187,6 @@
       client.publish(topic, payload);
     }
 
-    // Kiểm tra WiFi (mạng Internet)
     function checkWiFiStatus() {
       fetch("https://www.google.com/favicon.ico", { method: "HEAD", mode: "no-cors" })
         .then(() => {
