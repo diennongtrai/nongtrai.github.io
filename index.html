@@ -17,7 +17,7 @@
       justify-content: space-between;
       align-items: center;
     }
-    button { padding: 6px 12px; margin-left: 5px; }
+    button { padding: 6px 12px; margin-top: 5px; margin-right: 5px; }
     .led-icon {
       font-size: 24px;
       margin-left: 10px;
@@ -27,67 +27,62 @@
     .led-off { color: #ccc; }
     .online { color: green; }
     .offline { color: red; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: #fff;
-      margin-top: 15px;
-    }
-    th, td {
-      border: 1px solid #ccc;
-      padding: 8px;
-      text-align: center;
-    }
-    th { background-color: #f2f2f2; }
   </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
 <body>
-  <h2>ESP32 Dashboard</h2>
+  <h2>ESP32 MQTT Dashboard</h2>
 
   <div class="status">
     <b>MQTT:</b> <span id="mqttStatus" class="offline">Chưa kết nối</span><br>
     <b>WiFi:</b> <span id="wifiStatus" class="offline">Đang kiểm tra...</span>
   </div>
 
-  <h3>Điều khiển LED</h3>
+  <h3>Điều khiển & Trạng thái Thiết bị</h3>
+
+  <!-- Sensor 1 -->
   <div class="sensor-box">
     <div>
-      Sensor 1:
+      <b>Sensor 1</b><br>
+      Moving: <span id="m_sensor_1">-</span><br>
+      Stationary: <span id="s_sensor_1">-</span><br>
+      LED: <span id="l_sensor_1">-</span><br>
       <button onclick="controlLed('sensor_1', 1)">Bật</button>
       <button onclick="controlLed('sensor_1', 0)">Tắt</button>
     </div>
     <i id="icon_sensor_1" class="fas fa-lightbulb led-icon led-off"></i>
   </div>
 
+  <!-- Sensor 2 -->
   <div class="sensor-box">
     <div>
-      Sensor 2:
+      <b>Sensor 2</b><br>
+      Moving: <span id="m_sensor_2">-</span><br>
+      Stationary: <span id="s_sensor_2">-</span><br>
+      LED: <span id="l_sensor_2">-</span><br>
       <button onclick="controlLed('sensor_2', 1)">Bật</button>
       <button onclick="controlLed('sensor_2', 0)">Tắt</button>
     </div>
     <i id="icon_sensor_2" class="fas fa-lightbulb led-icon led-off"></i>
   </div>
 
-  <h3>Lịch sử dữ liệu nhận</h3>
-  <table id="dataTable">
-    <thead>
-      <tr>
-        <th>Thời gian</th>
-        <th>Thiết bị</th>
-        <th>Moving</th>
-        <th>Stationary</th>
-        <th>LED</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+  <!-- Sensor 3 -->
+  <div class="sensor-box">
+    <div>
+      <b>Sensor 3</b><br>
+      Moving: <span id="m_sensor_3">-</span><br>
+      Stationary: <span id="s_sensor_3">-</span><br>
+      LED: <span id="l_sensor_3">-</span><br>
+      <button onclick="controlLed('sensor_3', 1)">Bật</button>
+      <button onclick="controlLed('sensor_3', 0)">Tắt</button>
+    </div>
+    <i id="icon_sensor_3" class="fas fa-lightbulb led-icon led-off"></i>
+  </div>
 
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <script>
     const mqttStatus = document.getElementById("mqttStatus");
     const wifiStatus = document.getElementById("wifiStatus");
-    const tableBody = document.querySelector("#dataTable tbody");
 
     const client = mqtt.connect("wss://5535a388c0214921bd01737fcf390158.s1.eu.hivemq.cloud:8884/mqtt", {
       username: "Famer_smarthome123",
@@ -111,28 +106,17 @@
         const stationary = payload.stationary ?? '-';
         const device = topic.replace("/control", "");
 
+        // Cập nhật icon LED
         const icon = document.getElementById("icon_" + device);
         if (icon) {
           icon.classList.toggle("led-on", led == 1);
           icon.classList.toggle("led-off", led == 0);
         }
 
-        const time = new Date().toLocaleTimeString();
-
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${time}</td>
-          <td>${device}</td>
-          <td>${moving}</td>
-          <td>${stationary}</td>
-          <td>${led == 1 ? 'Bật' : 'Tắt'}</td>
-        `;
-        tableBody.appendChild(row);
-
-        // Giới hạn số dòng (ví dụ: 50 dòng)
-        if (tableBody.rows.length > 10) {
-          tableBody.deleteRow(0);
-        }
+        // Cập nhật dữ liệu cố định theo thiết bị
+        document.getElementById("m_" + device).textContent = moving;
+        document.getElementById("s_" + device).textContent = stationary;
+        document.getElementById("l_" + device).textContent = led == 1 ? "Bật" : "Tắt";
       } catch (err) {
         console.error("Lỗi phân tích dữ liệu:", err);
       }
@@ -143,7 +127,7 @@
       client.publish(topic, payload);
     }
 
-    // Kiểm tra WiFi (mạng Internet)
+    // Kiểm tra trạng thái Internet
     function checkWiFiStatus() {
       fetch("https://www.google.com/favicon.ico", { method: "HEAD", mode: "no-cors" })
         .then(() => {
