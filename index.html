@@ -1,36 +1,53 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ESP32 Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ESP32 MQTT Dashboard</title>
   <style>
     body { font-family: Arial; background: #f0f0f0; padding: 20px; }
     .status { margin-bottom: 20px; }
     .sensor-box {
-      background: #fff; padding: 10px; margin-bottom: 10px;
-      border-radius: 8px; box-shadow: 0 0 5px #ccc;
-      display: flex; align-items: center; justify-content: space-between;
+      background: #fff;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 5px #ccc;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
     button { padding: 6px 12px; margin-left: 5px; }
-    .online { color: green; }
-    .offline { color: red; }
     .led-icon {
       font-size: 24px;
       margin-left: 10px;
       transition: color 0.3s;
     }
     .led-on { color: gold; }
-    .led-off { color: #999; }
+    .led-off { color: #ccc; }
+    .online { color: green; }
+    .offline { color: red; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      margin-top: 15px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th { background-color: #f2f2f2; }
   </style>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
 <body>
-  <h2>ESP32 Dashboard (MQTT)</h2>
-  
+  <h2>ESP32 Dashboard</h2>
+
   <div class="status">
-    <b>MQTT Trạng thái:</b> <span id="mqttStatus" class="offline">Chưa kết nối</span><br>
-    <b>WiFi Trạng thái:</b> <span id="wifiStatus" class="offline">Đang kiểm tra...</span>
+    <b>MQTT:</b> <span id="mqttStatus" class="offline">Chưa kết nối</span><br>
+    <b>WiFi:</b> <span id="wifiStatus" class="offline">Đang kiểm tra...</span>
   </div>
 
   <h3>Điều khiển LED</h3>
@@ -42,6 +59,7 @@
     </div>
     <i id="icon_sensor_1" class="fas fa-lightbulb led-icon led-off"></i>
   </div>
+
   <div class="sensor-box">
     <div>
       Sensor 2:
@@ -51,13 +69,25 @@
     <i id="icon_sensor_2" class="fas fa-lightbulb led-icon led-off"></i>
   </div>
 
-  <h3>Dữ liệu Sensor</h3>
-  <pre id="sensorData">Đang chờ dữ liệu...</pre>
+  <h3>Lịch sử dữ liệu nhận</h3>
+  <table id="dataTable">
+    <thead>
+      <tr>
+        <th>Thời gian</th>
+        <th>Thiết bị</th>
+        <th>Moving</th>
+        <th>Stationary</th>
+        <th>LED</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <script>
     const mqttStatus = document.getElementById("mqttStatus");
     const wifiStatus = document.getElementById("wifiStatus");
+    const tableBody = document.querySelector("#dataTable tbody");
 
     const client = mqtt.connect("wss://5535a388c0214921bd01737fcf390158.s1.eu.hivemq.cloud:8884/mqtt", {
       username: "Famer_smarthome123",
@@ -67,22 +97,44 @@
     client.on("connect", () => {
       mqttStatus.textContent = "Đã kết nối";
       mqttStatus.className = "online";
-      ["sensor_1", "sensor_2", "sensor_3"].forEach(topic => client.subscribe(topic));
+
+      ["sensor_1", "sensor_2", "sensor_3"].forEach(topic => {
+        client.subscribe(topic + "/control");
+      });
     });
 
     client.on("message", (topic, message) => {
-      const msg = JSON.parse(message.toString());
-      document.getElementById("sensorData").textContent += `\n[${topic}] M:${msg.moving} S:${msg.stationary} LED:${msg.led}`;
+      try {
+        const payload = JSON.parse(message.toString());
+        const led = payload.led;
+        const moving = payload.moving ?? '-';
+        const stationary = payload.stationary ?? '-';
+        const device = topic.replace("/control", "");
 
-      const icon = document.getElementById("icon_" + topic);
-      if (icon) {
-        if (msg.led == 1) {
-          icon.classList.remove("led-off");
-          icon.classList.add("led-on");
-        } else {
-          icon.classList.remove("led-on");
-          icon.classList.add("led-off");
+        const icon = document.getElementById("icon_" + device);
+        if (icon) {
+          icon.classList.toggle("led-on", led == 1);
+          icon.classList.toggle("led-off", led == 0);
         }
+
+        const time = new Date().toLocaleTimeString();
+
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${time}</td>
+          <td>${device}</td>
+          <td>${moving}</td>
+          <td>${stationary}</td>
+          <td>${led == 1 ? 'Bật' : 'Tắt'}</td>
+        `;
+        tableBody.appendChild(row);
+
+        // Giới hạn số dòng (ví dụ: 50 dòng)
+        if (tableBody.rows.length > 50) {
+          tableBody.deleteRow(0);
+        }
+      } catch (err) {
+        console.error("Lỗi phân tích dữ liệu:", err);
       }
     });
 
@@ -91,6 +143,7 @@
       client.publish(topic, payload);
     }
 
+    // Kiểm tra WiFi (mạng Internet)
     function checkWiFiStatus() {
       fetch("https://www.google.com/favicon.ico", { method: "HEAD", mode: "no-cors" })
         .then(() => {
