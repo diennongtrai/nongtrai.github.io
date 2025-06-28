@@ -7,26 +7,48 @@
   <style>
     body { font-family: Arial; background: #f0f0f0; padding: 20px; }
     .status { margin-bottom: 20px; }
-    .sensor-box { background: #fff; padding: 10px; margin-bottom: 10px; border-radius: 8px; box-shadow: 0 0 5px #ccc; }
-    button { padding: 6px 12px; margin-left: 10px; }
+    .sensor-box {
+      background: #fff; padding: 10px; margin-bottom: 10px;
+      border-radius: 8px; box-shadow: 0 0 5px #ccc;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    button { padding: 6px 12px; margin-left: 5px; }
+    .online { color: green; }
+    .offline { color: red; }
+    .led-icon {
+      font-size: 24px;
+      margin-left: 10px;
+      transition: color 0.3s;
+    }
+    .led-on { color: gold; }
+    .led-off { color: #999; }
   </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
   <h2>ESP32 Dashboard (MQTT)</h2>
+  
   <div class="status">
-    <b>MQTT Trạng thái:</b> <span id="mqttStatus">Chưa kết nối</span>
+    <b>MQTT Trạng thái:</b> <span id="mqttStatus" class="offline">Chưa kết nối</span><br>
+    <b>WiFi Trạng thái:</b> <span id="wifiStatus" class="offline">Đang kiểm tra...</span>
   </div>
 
   <h3>Điều khiển LED</h3>
   <div class="sensor-box">
-    Sensor 1:
-    <button onclick="controlLed('sensor_1', 1)">Bật</button>
-    <button onclick="controlLed('sensor_1', 0)">Tắt</button>
+    <div>
+      Sensor 1:
+      <button onclick="controlLed('sensor_1', 1)">Bật</button>
+      <button onclick="controlLed('sensor_1', 0)">Tắt</button>
+    </div>
+    <i id="icon_sensor_1" class="fas fa-lightbulb led-icon led-off"></i>
   </div>
   <div class="sensor-box">
-    Sensor 2:
-    <button onclick="controlLed('sensor_2', 1)">Bật</button>
-    <button onclick="controlLed('sensor_2', 0)">Tắt</button>
+    <div>
+      Sensor 2:
+      <button onclick="controlLed('sensor_2', 1)">Bật</button>
+      <button onclick="controlLed('sensor_2', 0)">Tắt</button>
+    </div>
+    <i id="icon_sensor_2" class="fas fa-lightbulb led-icon led-off"></i>
   </div>
 
   <h3>Dữ liệu Sensor</h3>
@@ -34,25 +56,55 @@
 
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <script>
+    const mqttStatus = document.getElementById("mqttStatus");
+    const wifiStatus = document.getElementById("wifiStatus");
+
     const client = mqtt.connect("wss://5535a388c0214921bd01737fcf390158.s1.eu.hivemq.cloud:8884/mqtt", {
       username: "Famer_smarthome123",
       password: "@Tmh12345678"
     });
 
     client.on("connect", () => {
-      document.getElementById("mqttStatus").textContent = "Đã kết nối";
+      mqttStatus.textContent = "Đã kết nối";
+      mqttStatus.className = "online";
       ["sensor_1", "sensor_2", "sensor_3"].forEach(topic => client.subscribe(topic));
     });
 
     client.on("message", (topic, message) => {
       const msg = JSON.parse(message.toString());
       document.getElementById("sensorData").textContent += `\n[${topic}] M:${msg.moving} S:${msg.stationary} LED:${msg.led}`;
+
+      const icon = document.getElementById("icon_" + topic);
+      if (icon) {
+        if (msg.led == 1) {
+          icon.classList.remove("led-off");
+          icon.classList.add("led-on");
+        } else {
+          icon.classList.remove("led-on");
+          icon.classList.add("led-off");
+        }
+      }
     });
 
     function controlLed(topic, state) {
       const payload = JSON.stringify({ led: state });
       client.publish(topic, payload);
     }
+
+    function checkWiFiStatus() {
+      fetch("https://www.google.com/favicon.ico", { method: "HEAD", mode: "no-cors" })
+        .then(() => {
+          wifiStatus.textContent = "Đã kết nối";
+          wifiStatus.className = "online";
+        })
+        .catch(() => {
+          wifiStatus.textContent = "Mất kết nối";
+          wifiStatus.className = "offline";
+        });
+    }
+
+    setInterval(checkWiFiStatus, 5000);
+    checkWiFiStatus();
   </script>
 </body>
 </html>
