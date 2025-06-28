@@ -21,15 +21,6 @@
     .led-off { color: #ccc; }
     .online { color: green; }
     .offline { color: red; }
-    table {
-      width: 100%; border-collapse: collapse;
-      background: #fff; margin-top: 15px;
-    }
-    th, td {
-      border: 1px solid #ccc;
-      padding: 8px; text-align: center;
-    }
-    th { background-color: #f2f2f2; }
     canvas {
       background: #fff; padding: 10px;
       margin-top: 20px; border-radius: 8px;
@@ -42,8 +33,7 @@
   <h2>ESP32 Dashboard</h2>
 
   <div class="status">
-    <b>MQTT:</b> <span id="mqttStatus" class="offline">Chưa kết nối</span><br>
-    <b>WiFi:</b> <span id="wifiStatus" class="offline">Đang kiểm tra...</span>
+    <b>MQTT:</b> <span id="mqttStatus" class="offline">Chưa kết nối</span>
   </div>
 
   <h3>Điều khiển LED</h3>
@@ -65,20 +55,6 @@
     <i id="icon_sensor_2" class="fas fa-lightbulb led-icon led-off"></i>
   </div>
 
-  <h3>Lịch sử dữ liệu nhận</h3>
-  <table id="dataTable">
-    <thead>
-      <tr>
-        <th>Thời gian</th>
-        <th>Thiết bị</th>
-        <th>Moving</th>
-        <th>Stationary</th>
-        <th>LED</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
   <h3>Biểu đồ Sensor 1</h3>
   <canvas id="chart_sensor_1" width="600" height="250"></canvas>
 
@@ -89,25 +65,10 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     const mqttStatus = document.getElementById("mqttStatus");
-    const wifiStatus = document.getElementById("wifiStatus");
-    const tableBody = document.querySelector("#dataTable tbody");
-
-    const client = mqtt.connect("wss://5535a388c0214921bd01737fcf390158.s1.eu.hivemq.cloud:8884/mqtt", {
-      username: "Famer_smarthome123",
-      password: "@Tmh12345678"
-    });
 
     const chartData = {
-      sensor_1: {
-        labels: [],
-        moving: [],
-        stationary: []
-      },
-      sensor_2: {
-        labels: [],
-        moving: [],
-        stationary: []
-      }
+      sensor_1: { labels: [], moving: [], stationary: [] },
+      sensor_2: { labels: [], moving: [], stationary: [] }
     };
 
     const charts = {
@@ -133,74 +94,52 @@
       })
     };
 
+    const client = mqtt.connect("wss://5535a388c0214921bd01737fcf390158.s1.eu.hivemq.cloud:8884/mqtt", {
+      username: "Famer_smarthome123",
+      password: "@Tmh12345678"
+    });
+
     client.on("connect", () => {
       mqttStatus.textContent = "Đã kết nối";
       mqttStatus.className = "online";
-
-      ["sensor_1", "sensor_2", "sensor_3"].forEach(topic => {
+      ["sensor_1", "sensor_2"].forEach(topic => {
         client.subscribe(topic + "/control");
       });
     });
 
     client.on("message", (topic, message) => {
+      const device = topic.replace("/control", "");
       try {
-        const payload = JSON.parse(message.toString());
-        const device = topic.replace("/control", "");
-        const led = payload.led;
-        const moving = payload.moving ?? 0;
-        const stationary = payload.stationary ?? 0;
-        const icon = document.getElementById("icon_" + device);
-        const time = new Date().toLocaleTimeString();
+        const data = JSON.parse(message.toString());
+        const led = data.led ?? 0;
+        const moving = data.moving ?? Math.random() * 10;
+        const stationary = data.stationary ?? Math.random() * 5;
 
+        const icon = document.getElementById("icon_" + device);
         if (icon) {
           icon.classList.toggle("led-on", led == 1);
           icon.classList.toggle("led-off", led == 0);
         }
 
-        // Update table
-        const row = document.createElement("tr");
-        row.innerHTML = `<td>${time}</td><td>${device}</td><td>${moving}</td><td>${stationary}</td><td>${led == 1 ? 'Bật' : 'Tắt'}</td>`;
-        tableBody.appendChild(row);
-        if (tableBody.rows.length > 50) tableBody.deleteRow(0);
-
-        // Update chart
+        const time = new Date().toLocaleTimeString();
         if (charts[device]) {
-          const chart = charts[device];
-          const data = chartData[device];
-          data.labels.push(time);
-          data.moving.push(moving);
-          data.stationary.push(stationary);
-          if (data.labels.length > 20) {
-            data.labels.shift();
-            data.moving.shift();
-            data.stationary.shift();
+          const d = chartData[device];
+          d.labels.push(time);
+          d.moving.push(moving);
+          d.stationary.push(stationary);
+          if (d.labels.length > 20) {
+            d.labels.shift(); d.moving.shift(); d.stationary.shift();
           }
-          chart.update();
+          charts[device].update();
         }
-      } catch (err) {
-        console.error("Lỗi phân tích dữ liệu:", err);
+      } catch (e) {
+        console.error("JSON error:", e);
       }
     });
 
     function controlLed(topic, state) {
-      const payload = JSON.stringify({ led: state });
-      client.publish(topic, payload);
+      client.publish(topic, JSON.stringify({ led: state }));
     }
-
-    function checkWiFiStatus() {
-      fetch("https://www.google.com/favicon.ico", { method: "HEAD", mode: "no-cors" })
-        .then(() => {
-          wifiStatus.textContent = "Đã kết nối";
-          wifiStatus.className = "online";
-        })
-        .catch(() => {
-          wifiStatus.textContent = "Mất kết nối";
-          wifiStatus.className = "offline";
-        });
-    }
-
-    setInterval(checkWiFiStatus, 5000);
-    checkWiFiStatus();
   </script>
 </body>
 </html>
