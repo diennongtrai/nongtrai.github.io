@@ -33,9 +33,10 @@
       margin-right: 5px;
     }
     .led-icon {
-      font-size: 24px;
+      font-size: 28px;
+      transition: all 0.3s;
     }
-    .led-on { color: gold; }
+    .led-on { color: #28a745; }
     .led-off { color: #ccc; }
     .data-row {
       margin-top: 10px;
@@ -121,7 +122,7 @@
       <div class="sensor-box" id="box_${device}">
         <div class="sensor-header">
           <span><i class="fas fa-microchip"></i> ${device.replace('_', ' ').toUpperCase()}</span>
-          <i id="icon_${device}" class="fas fa-lightbulb led-icon led-off"></i>
+          <i id="icon_${device}" class="fas fa-toggle-off led-icon led-off"></i>
         </div>
         <div class="data-row"><i class="fas fa-running"></i> Moving: <span id="moving_${device}">-</span></div>
         <div class="data-row"><i class="fas fa-user"></i> Stationary: <span id="stationary_${device}">-</span></div>
@@ -161,15 +162,13 @@
 
         const icon = document.getElementById("icon_" + device);
         if (icon) {
-          icon.classList.toggle("led-on", led == 1);
-          icon.classList.toggle("led-off", led == 0);
+          icon.className = led == 1 ? "fas fa-toggle-on led-icon led-on" : "fas fa-toggle-off led-icon led-off";
         }
 
         const now = new Date();
         const formatted = now.toLocaleTimeString();
         document.getElementById("time_" + device).textContent = formatted;
 
-        // Lưu vào lịch sử
         const row = document.createElement("tr");
         row.innerHTML = `
           <td>${formatted}</td>
@@ -224,6 +223,10 @@
       a.click();
       URL.revokeObjectURL(url);
     }
+
+    setInterval(() => {
+      if (historyRows.length > 0) downloadCSV();
+    }, 5 * 60 * 1000);
 
     setInterval(checkWiFiStatus, 5000);
     checkWiFiStatus();
