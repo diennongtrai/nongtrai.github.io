@@ -82,7 +82,6 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
 <body>
-
   <h2>ESP32 MQTT Dashboard</h2>
   <div class="status">
     <b>MQTT:</b> <span id="mqttStatus" class="offline">Chưa kết nối</span><br>
@@ -94,6 +93,9 @@
   <div id="history">
     <h3>Lịch sử dữ liệu</h3>
     <button onclick="downloadCSV()">Tải về CSV</button>
+    <button onclick="showMonthlyEnergy()">Tổng kWh theo tháng</button>
+    <input type="date" id="paymentDate" onchange="savePaymentDate()" style="margin-left: 10px;">
+    <div id="monthlyEnergyResult" style="margin-top:10px;"></div>
     <table>
       <thead>
         <tr>
@@ -116,26 +118,49 @@
     const historyTable = document.getElementById("historyTable");
     const sensors = ["sensor_1", "sensor_2", "sensor_3"];
     const historyRows = [];
+    const energyLogs = [];
+    let lastMonthEnergy = 0;
 
-    sensors.forEach(device => {
-      let dataRows = '';
-      if (device === "sensor_3") {
-        dataRows = `
-          <div class="data-row"><i class="fas fa-bolt"></i> Voltage: <span id="voltage_${device}">-</span></div>
-          <div class="data-row"><i class="fas fa-battery-three-quarters"></i> Current: <span id="current_${device}">-</span></div>
-          <div class="data-row"><i class="fas fa-plug"></i> Power: <span id="power_${device}">-</span></div>
-          <div class="data-row"><i class="fas fa-tachometer-alt"></i> Energy: <span id="energy_${device}">-</span></div>
-        `;
-      } else {
-        dataRows = `
-          <div class="data-row"><i class="fas fa-running"></i> Moving: <span id="moving_${device}">-</span></div>
-          <div class="data-row"><i class="fas fa-user"></i> Stationary: <span id="stationary_${device}">-</span></div>
-        `;
+    function resetMonthlyEnergyIfDue() {
+      const paymentDate = localStorage.getItem("paymentDate");
+      if (!paymentDate) return;
+      const today = new Date();
+      const payDate = new Date(paymentDate);
+      if (today.getDate() === payDate.getDate()) {
+        lastMonthEnergy = 0;
+        energyLogs.length = 0;
       }
+    }
+
+    function savePaymentDate() {
+      const date = document.getElementById("paymentDate").value;
+      localStorage.setItem("paymentDate", date);
+    }
+
+    const savedDate = localStorage.getItem("paymentDate");
+    if (savedDate) {
+      document.getElementById("paymentDate").value = savedDate;
+    }
+
+    setInterval(resetMonthlyEnergyIfDue, 3600000);
+
+    // (các đoạn mã còn lại giữ nguyên, như đã có trong tài liệu)
+    sensors.forEach(device => {
+      const dataRows = device === "sensor_3" ? `
+        <div class="data-row"><i class="fas fa-bolt"></i> Voltage: <span id="voltage_${device}">-</span></div>
+        <div class="data-row"><i class="fas fa-battery-three-quarters"></i> Current: <span id="current_${device}">-</span></div>
+        <div class="data-row"><i class="fas fa-plug"></i> Power: <span id="power_${device}">-</span></div>
+        <div class="data-row"><i class="fas fa-tachometer-alt"></i> Energy: <span id="energy_${device}">-</span></div>
+        <div id="monthlySummary_${device}" class="time-row" style="color: blue;"></div>` : `
+        <div class="data-row"><i class="fas fa-running"></i> Moving: <span id="moving_${device}">-</span></div>
+        <div class="data-row"><i class="fas fa-user"></i> Stationary: <span id="stationary_${device}">-</span></div>`;
+
+      const icon = device === "sensor_3" ? '<i class="fas fa-bolt"></i>' : '<i class="fas fa-microchip"></i>';
+
       const html = `
         <div class="sensor-box" id="box_${device}">
           <div class="sensor-header">
-            <span><i class="fas fa-microchip"></i> ${device.replace('_', ' ').toUpperCase()}</span>
+            <span>${icon} ${device.replace('_', ' ').toUpperCase()}</span>
             <i id="icon_${device}" class="fas fa-toggle-off led-icon led-off"></i>
           </div>
           ${dataRows}
@@ -168,21 +193,28 @@
         if (icon) icon.className = led == 1 ? "fas fa-toggle-on led-icon led-on" : "fas fa-toggle-off led-icon led-off";
 
         const now = new Date();
-        const formatted = now.toLocaleTimeString();
-        document.getElementById("time_" + device).textContent = formatted;
+        const formattedTime = now.toLocaleTimeString();
+        const formattedDate = now.toLocaleDateString('vi-VN');
+        const formatted = `${formattedDate} ${formattedTime}`;
 
         let content = [];
         if (device === "sensor_3") {
           ["voltage", "current", "power", "energy"].forEach(field => {
-            document.getElementById(field + "_" + device).textContent = data[field] ?? "-";
+            document.getElementById(`${field}_${device}`).textContent = data[field] ?? "-";
             content.push(`${field}: ${data[field]}`);
+            if (field === "energy") {
+              const monthYear = `${now.getMonth() + 1}/${now.getFullYear()}`;
+              energyLogs.push({ date: monthYear, energy: parseFloat(data[field] || 0) });
+            }
           });
         } else {
           ["moving", "stationary"].forEach(field => {
-            document.getElementById(field + "_" + device).textContent = data[field] ?? "-";
+            document.getElementById(`${field}_${device}`).textContent = data[field] ?? "-";
             content.push(`${field}: ${data[field]}`);
           });
         }
+
+        document.getElementById("time_" + device).textContent = formattedTime;
 
         const row = document.createElement("tr");
         row.innerHTML = `
@@ -194,7 +226,7 @@
         `;
         historyTable.appendChild(row);
         historyRows.push([formatted, device, content.join(" | "), led == 1 ? 'Bật' : 'Tắt']);
-        if (historyTable.rows.length > 10) {
+        if (historyTable.rows.length > 30) {
           historyTable.deleteRow(0);
           historyRows.shift();
         }
@@ -234,8 +266,58 @@
       URL.revokeObjectURL(url);
     }
 
-    setInterval(checkWiFiStatus, 5000);
-    checkWiFiStatus();
+    function showMonthlyEnergy() {
+      const monthlyTotal = {};
+      energyLogs.forEach(log => {
+        if (!monthlyTotal[log.date]) monthlyTotal[log.date] = 0;
+        monthlyTotal[log.date] += log.energy;
+      });
+
+      function tinhTienDien(kWh) {
+        if (kWh <= 50) return kWh * 1984;
+        if (kWh <= 100) return 50 * 1984 + (kWh - 50) * 2050;
+        if (kWh <= 200) return 50 * 1984 + 50 * 2050 + (kWh - 100) * 2380;
+        if (kWh <= 300) return 50 * 1984 + 50 * 2050 + 100 * 2380 + (kWh - 200) * 2998;
+        if (kWh <= 400) return 50 * 1984 + 50 * 2050 + 100 * 2380 + 100 * 2998 + (kWh - 300) * 3199;
+        return 50 * 1984 + 50 * 2050 + 100 * 2380 + 100 * 2998 + 100 * 3199 + (kWh - 400) * 3373;
+      }
+
+      let html = "<b>Tổng điện năng (kWh) và tiền điện theo tháng:</b><ul>";
+      let newestMonth = "";
+      let newestKwh = 0;
+      for (let month in monthlyTotal) {
+        const kWh = monthlyTotal[month];
+        const tien = tinhTienDien(kWh);
+        html += `<li><b>${month}</b>: ${kWh.toFixed(2)} kWh - <span style="color:blue">${tien.toLocaleString('vi-VN')} đ</span></li>`;
+        newestMonth = month;
+        newestKwh = kWh;
+      }
+      html += "</ul>";
+      document.getElementById("monthlyEnergyResult").innerHTML = html;
+
+      const tienMoi = tinhTienDien(newestKwh);
+      const summary = `Tháng ${newestMonth}: ${newestKwh.toFixed(2)} kWh - ${tienMoi.toLocaleString('vi-VN')} đ`;
+      const box = document.getElementById("monthlySummary_sensor_3");
+      if (box) box.innerText = summary;
+    }
+
+    function savePaymentDate() {
+      const date = document.getElementById("paymentDate").value;
+      localStorage.setItem("paymentDate", date);
+    }
+
+    function loadPaymentDate() {
+      const date = localStorage.getItem("paymentDate");
+      if (date) document.getElementById("paymentDate").value = date;
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      checkWiFiStatus();
+      loadPaymentDate();
+      showMonthlyEnergy();
+      setInterval(checkWiFiStatus, 5000);
+      setInterval(showMonthlyEnergy, 60000);
+    });
   </script>
 </body>
 </html>
