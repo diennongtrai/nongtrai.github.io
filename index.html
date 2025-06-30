@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ESP32 MQTT Dashboard</title>
   <style>
@@ -32,109 +32,183 @@
       color: #007bff;
       margin-right: 5px;
     }
-    .led-icon {
-      font-size: 24px;
-    }
-    .led-on { color: gold; }
+    .led-icon { font-size: 28px; transition: all 0.3s; }
+    .led-on { color: #28a745; }
     .led-off { color: #ccc; }
-    .data-row {
-      margin-top: 10px;
-      line-height: 1.8em;
-      display: flex;
-      align-items: center;
-    }
-    .data-row i {
-      margin-right: 8px;
-      width: 20px;
-      text-align: center;
-      color: #333;
-    }
-    button {
-      padding: 5px 12px;
-      margin: 3px;
-    }
+    .data-row { margin-top: 10px; line-height: 1.8em; display: flex; align-items: center; }
+    .data-row i { margin-right: 8px; width: 20px; text-align: center; color: #333; }
+    .time-row { font-size: 0.9em; color: #666; margin-top: 8px; }
+    button { padding: 5px 12px; margin: 3px; }
     .online { color: green; }
     .offline { color: red; }
-    @media (max-width: 768px) {
-      .sensor-box { width: 100%; }
-    }
+    #history { margin-top: 30px; background: #fff; padding: 10px; border-radius: 10px; box-shadow: 0 0 5px #ccc; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background-color: #f9f9f9; }
   </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
 <body>
-
   <h2>ESP32 MQTT Dashboard</h2>
   <div class="status">
     <b>MQTT:</b> <span id="mqttStatus" class="offline">Chưa kết nối</span><br>
     <b>WiFi:</b> <span id="wifiStatus" class="offline">Đang kiểm tra...</span>
   </div>
 
-  <div class="sensor-grid">
+  <div class="sensor-grid" id="sensorContainer"></div>
 
-    <!-- Sensor 1 -->
-    <div class="sensor-box">
-      <div class="sensor-header">
-        <span><i class="fas fa-microchip"></i>Sensor 1</span>
-        <i id="icon_sensor_1" class="fas fa-lightbulb led-icon led-off"></i>
-      </div>
-      <div class="data-row"><i class="fas fa-running"></i> Moving: <span id="moving_sensor_1">-</span></div>
-      <div class="data-row"><i class="fas fa-user"></i> Stationary: <span id="stationary_sensor_1">-</span></div>
-      <div class="data-row"><i class="fas fa-lightbulb"></i> LED: <span id="led_sensor_1">-</span></div>
-      <button onclick="controlLed('sensor_1', 1)">Bật</button>
-      <button onclick="controlLed('sensor_1', 0)">Tắt</button>
-    </div>
-
-    <!-- Sensor 2 -->
-    <div class="sensor-box">
-      <div class="sensor-header">
-        <span><i class="fas fa-microchip"></i>Sensor 2</span>
-        <i id="icon_sensor_2" class="fas fa-lightbulb led-icon led-off"></i>
-      </div>
-      <div class="data-row"><i class="fas fa-running"></i> Moving: <span id="moving_sensor_2">-</span></div>
-      <div class="data-row"><i class="fas fa-user"></i> Stationary: <span id="stationary_sensor_2">-</span></div>
-      <div class="data-row"><i class="fas fa-lightbulb"></i> LED: <span id="led_sensor_2">-</span></div>
-      <button onclick="controlLed('sensor_2', 1)">Bật</button>
-      <button onclick="controlLed('sensor_2', 0)">Tắt</button>
-    </div>
-
-    <!-- Sensor 3 -->
-    <div class="sensor-box">
-      <div class="sensor-header">
-        <span><i class="fas fa-microchip"></i>Sensor 3</span>
-        <i id="icon_sensor_3" class="fas fa-lightbulb led-icon led-off"></i>
-      </div>
-      <div class="data-row"><i class="fas fa-bolt"></i> Voltage: <span id="voltage_sensor_3">-</span> V</div>
-      <div class="data-row"><i class="fas fa-battery-half"></i> Current: <span id="current_sensor_3">-</span> A</div>
-      <div class="data-row"><i class="fas fa-plug"></i> Power: <span id="power_sensor_3">-</span> W</div>
-      <div class="data-row"><i class="fas fa-bolt-lightning"></i> Energy: <span id="energy_sensor_3">-</span> kWh</div>
-      <div class="data-row"><i class="fas fa-clock"></i> Hourly: <span id="hourly_sensor_3">-</span> kWh</div>
-      <div class="data-row"><i class="fas fa-calendar-day"></i> Daily: <span id="daily_sensor_3">-</span> kWh</div>
-      <div class="data-row"><i class="fas fa-calendar-alt"></i> Monthly: <span id="monthly_sensor_3">-</span> kWh</div>
-      <div class="data-row"><i class="fas fa-money-bill-wave"></i> Cost: <span id="cost_sensor_3">-</span> đ</div>
-      <div class="data-row"><i class="fas fa-clock"></i> Time: <span id="time_sensor_3">-</span></div>
-      <div class="data-row"><i class="fas fa-lightbulb"></i> LED: <span id="led_sensor_3">-</span></div>
-      <button onclick="controlLed('sensor_3', 1)">Bật</button>
-      <button onclick="controlLed('sensor_3', 0)">Tắt</button>
-    </div>
-
+  <div id="history">
+    <h3>Lịch sử dữ liệu</h3>
+    <button onclick="downloadCSV()">Tải về CSV</button>
+    <button onclick="showMonthlyEnergy()">Tổng kWh theo tháng</button>
+    <button onclick="autoSaveCSV()">Lưu lịch sử ngay</button>
+    <input type="date" id="paymentDate" onchange="savePaymentDate()" style="margin-left: 10px;">
+    <div id="monthlyEnergyResult" style="margin-top:10px;"></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Thời gian</th>
+          <th>Thiết bị</th>
+          <th>Thông số</th>
+          <th>Giá trị</th>
+          <th>LED</th>
+        </tr>
+      </thead>
+      <tbody id="historyTable"></tbody>
+    </table>
   </div>
 
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <script>
+    const mqttStatus = document.getElementById("mqttStatus");
+    const wifiStatus = document.getElementById("wifiStatus");
+    const sensorContainer = document.getElementById("sensorContainer");
+    const historyTable = document.getElementById("historyTable");
+    const sensors = ["sensor_1", "sensor_2", "sensor_3"];
+    const historyRows = [];
+    const energyLogs = [];
+    let lastResetDate = "";
+
+    function resetMonthlyEnergyIfDue() {
+      const paymentDate = localStorage.getItem("paymentDate");
+      if (!paymentDate) return;
+      const today = new Date();
+      const todayStr = today.toISOString().split("T")[0];
+      const payDate = new Date(paymentDate);
+      if (today.getDate() === payDate.getDate() && lastResetDate !== todayStr) {
+        energyLogs.length = 0;
+        lastResetDate = todayStr;
+      }
+    }
+
+    function savePaymentDate() {
+      const date = document.getElementById("paymentDate").value;
+      localStorage.setItem("paymentDate", date);
+    }
+
+    function loadPaymentDate() {
+      const date = localStorage.getItem("paymentDate");
+      if (date) document.getElementById("paymentDate").value = date;
+    }
+
+    function restoreLastEnergy() {
+      const energy = localStorage.getItem("lastEnergyValue");
+      const time = localStorage.getItem("lastEnergyTime");
+      if (energy) document.getElementById("energy_sensor_3").textContent = energy;
+      if (time) document.getElementById("time_sensor_3").textContent = time.split(" ")[1];
+    }
+
+    function controlLed(topic, state) {
+      const payload = JSON.stringify({ led: state });
+      client.publish(topic, payload);
+    }
+
+    function downloadCSV() {
+      let csv = "Thời gian,Thiết bị,Thông số,Giá trị,LED\n";
+      historyRows.forEach(row => csv += row.join(",") + "\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "lich_su_du_lieu.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function autoSaveCSV() {
+      if (historyRows.length === 0) return;
+      let csv = "Thời gian,Thiết bị,Thông số,LED\n";
+      historyRows.forEach(row => csv += row.join(",") + "\n");
+      const now = new Date();
+      const timestamp = now.toISOString().slice(0, 13).replace(/[:T]/g, "-");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `lich_su_dien_${timestamp}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function showMonthlyEnergy() {
+      const monthlyTotal = {};
+      energyLogs.forEach(log => {
+        if (!monthlyTotal[log.date]) monthlyTotal[log.date] = 0;
+        monthlyTotal[log.date] += log.energy;
+      });
+      function tinhTienDien(kWh) {
+        if (kWh <= 50) return kWh * 1984;
+        if (kWh <= 100) return 50 * 1984 + (kWh - 50) * 2050;
+        if (kWh <= 200) return 50 * 1984 + 50 * 2050 + (kWh - 100) * 2380;
+        if (kWh <= 300) return 50 * 1984 + 50 * 2050 + 100 * 2380 + (kWh - 200) * 2998;
+        if (kWh <= 400) return 50 * 1984 + 50 * 2050 + 100 * 2380 + 100 * 2998 + (kWh - 300) * 3199;
+        return 50 * 1984 + 50 * 2050 + 100 * 2380 + 100 * 2998 + 100 * 3199 + (kWh - 400) * 3373;
+      }
+      let html = "<b>Tổng điện năng (kWh) và tiền điện theo tháng:</b><ul>";
+      for (let month in monthlyTotal) {
+        const kWh = monthlyTotal[month];
+        const tien = tinhTienDien(kWh);
+        html += `<li><b>${month}</b>: ${kWh.toFixed(2)} kWh - <span style="color:blue">${tien.toLocaleString('vi-VN')} đ</span></li>`;
+      }
+      html += "</ul>";
+      document.getElementById("monthlyEnergyResult").innerHTML = html;
+    }
+
+    sensors.forEach(device => {
+      const dataRows = device === "sensor_3" ? `
+        <div class="data-row"><i class="fas fa-bolt"></i> Voltage: <span id="voltage_${device}">-</span></div>
+        <div class="data-row"><i class="fas fa-battery-three-quarters"></i> Current: <span id="current_${device}">-</span></div>
+        <div class="data-row"><i class="fas fa-plug"></i> Power: <span id="power_${device}">-</span></div>
+        <div class="data-row"><i class="fas fa-tachometer-alt"></i> Energy: <span id="energy_${device}">-</span></div>
+        <div id="monthlySummary_${device}" class="time-row" style="color: blue;"></div>` : `
+        <div class="data-row"><i class="fas fa-running"></i> Moving: <span id="moving_${device}">-</span></div>
+        <div class="data-row"><i class="fas fa-user"></i> Stationary: <span id="stationary_${device}">-</span></div>`;
+
+      const icon = device === "sensor_3" ? '<i class="fas fa-bolt"></i>' : '<i class="fas fa-microchip"></i>';
+      const html = `
+        <div class="sensor-box" id="box_${device}">
+          <div class="sensor-header">
+            <span>${icon} ${device.replace('_', ' ').toUpperCase()}</span>
+            <i id="icon_${device}" class="fas fa-toggle-off led-icon led-off"></i>
+          </div>
+          ${dataRows}
+          <div class="data-row"><i class="fas fa-lightbulb"></i> LED: <span id="led_${device}">-</span></div>
+          <div class="time-row">Cập nhật: <span id="time_${device}">--:--:--</span></div>
+          <button onclick="controlLed('${device}', 1)">Bật</button>
+          <button onclick="controlLed('${device}', 0)">Tắt</button>
+        </div>`;
+      sensorContainer.insertAdjacentHTML('beforeend', html);
+    });
+
     const client = mqtt.connect("wss://5535a388c0214921bd01737fcf390158.s1.eu.hivemq.cloud:8884/mqtt", {
       username: "Famer_smarthome123",
       password: "@Tmh12345678"
     });
 
-    const mqttStatus = document.getElementById("mqttStatus");
-    const wifiStatus = document.getElementById("wifiStatus");
-
     client.on("connect", () => {
       mqttStatus.textContent = "Đã kết nối";
       mqttStatus.className = "online";
-      ["sensor_1", "sensor_2", "sensor_3"].forEach(id => {
-        client.subscribe(id + "/control");
-      });
+      sensors.forEach(topic => client.subscribe(topic + "/control"));
     });
 
     client.on("message", (topic, message) => {
@@ -142,38 +216,53 @@
         const data = JSON.parse(message.toString());
         const device = topic.replace("/control", "");
         const led = data.led ?? "-";
-
-        const icon = document.getElementById("icon_" + device);
-        if (icon) {
-          icon.classList.toggle("led-on", led == 1);
-          icon.classList.toggle("led-off", led == 0);
-        }
-
         document.getElementById("led_" + device).textContent = led == 1 ? "Bật" : "Tắt";
+        const icon = document.getElementById("icon_" + device);
+        if (icon) icon.className = led == 1 ? "fas fa-toggle-on led-icon led-on" : "fas fa-toggle-off led-icon led-off";
 
+        const now = new Date();
+        const formattedTime = now.toLocaleTimeString();
+        const formattedDate = now.toLocaleDateString('vi-VN');
+        const formatted = `${formattedDate} ${formattedTime}`;
+
+        let content = [];
         if (device === "sensor_3") {
-          document.getElementById("voltage_sensor_3").textContent = data.voltage ?? "-";
-          document.getElementById("current_sensor_3").textContent = data.current ?? "-";
-          document.getElementById("power_sensor_3").textContent = data.power ?? "-";
-          document.getElementById("energy_sensor_3").textContent = data.energy ?? "-";
-          document.getElementById("hourly_sensor_3").textContent = data.hourly_energy ?? "-";
-          document.getElementById("daily_sensor_3").textContent = data.daily_energy ?? "-";
-          document.getElementById("monthly_sensor_3").textContent = data.monthly_energy ?? "-";
-          document.getElementById("cost_sensor_3").textContent = data.monthly_cost ?? "-";
-          document.getElementById("time_sensor_3").textContent = data.timestamp ?? "-";
+          ["voltage", "current", "power", "energy"].forEach(field => {
+            document.getElementById(`${field}_${device}`).textContent = data[field] ?? "-";
+            content.push(`${field}: ${data[field]}`);
+            if (field === "energy" && !isNaN(data[field])) {
+              const monthYear = `${now.getMonth() + 1}/${now.getFullYear()}`;
+              energyLogs.push({ date: monthYear, energy: parseFloat(data[field]) });
+              localStorage.setItem("lastEnergyValue", data[field]);
+              localStorage.setItem("lastEnergyTime", formatted);
+            }
+          });
         } else {
-          document.getElementById("moving_" + device).textContent = data.moving ?? "-";
-          document.getElementById("stationary_" + device).textContent = data.stationary ?? "-";
+          ["moving", "stationary"].forEach(field => {
+            document.getElementById(`${field}_${device}`).textContent = data[field] ?? "-";
+            content.push(`${field}: ${data[field]}`);
+          });
         }
-      } catch (e) {
-        console.error("Lỗi JSON:", e);
+
+        document.getElementById("time_" + device).textContent = formattedTime;
+
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${formatted}</td>
+          <td>${device}</td>
+          <td>${content.map(c => c.split(':')[0]).join(', ')}</td>
+          <td>${content.map(c => c.split(': ')[1]).join(' / ')}</td>
+          <td>${led == 1 ? 'Bật' : 'Tắt'}</td>`;
+        historyTable.appendChild(row);
+        historyRows.push([formatted, device, content.join(" | "), led == 1 ? 'Bật' : 'Tắt']);
+        if (historyTable.rows.length > 30) {
+          historyTable.deleteRow(0);
+          historyRows.shift();
+        }
+      } catch (err) {
+        console.error("Lỗi xử lý tin nhắn:", err);
       }
     });
-
-    function controlLed(topic, state) {
-      const payload = JSON.stringify({ led: state });
-      client.publish(topic, payload);
-    }
 
     function checkWiFiStatus() {
       fetch("https://www.google.com/favicon.ico", { method: "HEAD", mode: "no-cors" })
@@ -187,8 +276,17 @@
         });
     }
 
-    setInterval(checkWiFiStatus, 5000);
-    checkWiFiStatus();
+    window.addEventListener("DOMContentLoaded", () => {
+      checkWiFiStatus();
+      loadPaymentDate();
+      restoreLastEnergy();
+      showMonthlyEnergy();
+      resetMonthlyEnergyIfDue();
+      setInterval(checkWiFiStatus, 5000);
+      setInterval(showMonthlyEnergy, 60000);
+      setInterval(resetMonthlyEnergyIfDue, 3600000);
+      setInterval(autoSaveCSV, 3600000);
+    });
   </script>
 </body>
 </html>
