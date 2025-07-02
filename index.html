@@ -83,6 +83,7 @@
     th { background-color: #f9f9f9; }
   </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -97,6 +98,7 @@
   <div id="history">
     <h3>Lịch sử dữ liệu</h3>
     <button onclick="downloadCSV()">Tải về CSV</button>
+    <button onclick="exportExcelBillToServer()">📄 Lưu Bill lên Server</button>
     <table>
       <thead>
         <tr>
@@ -112,6 +114,7 @@
   </div>
 
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
 <script>
   const mqttStatus = document.getElementById("mqttStatus");
   const wifiStatus = document.getElementById("wifiStatus");
@@ -119,7 +122,7 @@
   const historyTable = document.getElementById("historyTable");
   const sensors = ["sensor_1", "sensor_2", "sensor_3"];
   const historyRows = [];
-
+  
   sensors.forEach(device => {
     let dataRows = '';
     if (device === "sensor_3") {
@@ -214,6 +217,9 @@
         const billDetail = calculateElectricityCostDetailed(consumed);
         const bill = billDetail.total;
 
+         // 🟢 Ghi vào localStorage
+        saveCurrentBill(billingStart, consumed, bill, startEnergy);
+
         const priceDiv = document.getElementById("price_display") || document.createElement("div");
         priceDiv.className = "data-row";
         priceDiv.id = "price_display";
@@ -244,7 +250,7 @@
       `;
       historyTable.appendChild(row);
       historyRows.push([formatted, device, content.join(" | "), led == 1 ? 'Bật' : 'Tắt']);
-      if (historyTable.rows.length > 6) {
+      if (historyTable.rows.length > 30) {
         historyTable.deleteRow(0);
         historyRows.shift();
       }
@@ -312,9 +318,50 @@
     URL.revokeObjectURL(url);
   }
 
+  function exportExcelBillToServer() {
+  const rows = [["Tháng", "Sản lượng (kWh)", "Tiền điện (VNĐ)", "Chỉ số đầu kỳ"]];
+  for (let key in localStorage) {
+    if (key.startsWith("bill_")) {
+      const item = JSON.parse(localStorage.getItem(key));
+      const parts = key.split("_");
+      const month = `${parts[2]}/${parts[1]}`;
+      rows.push([month, item.energy, item.bill, item.startEnergy]);
+    }
+  }
+
+  const worksheet = XLSX.utils.aoa_to_sheet(rows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Bill");
+
+  const wbout = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([wbout], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  });
+
+  const formData = new FormData();
+  const now = new Date();
+  const filename = `bill_${String(now.getMonth() + 1).padStart(2, '0')}_${now.getFullYear()}.xlsx`;
+  formData.append("file", blob, filename);
+
+  fetch("http://localhost/esp_dashboard/upload_bill.php", {
+    method: "POST",
+    body: formData
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === "ok") {
+        alert("✔ File đã lưu vào server: " + data.path);
+      } else {
+        alert("❌ Lỗi khi lưu: " + JSON.stringify(data));
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert("❌ Lỗi kết nối server");
+    });
+}
   setInterval(checkWiFiStatus, 5000);
   checkWiFiStatus();
 </script>
-
 </body>
 </html>
