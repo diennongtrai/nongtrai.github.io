@@ -353,10 +353,10 @@
   const filename = `bill_${String(now.getMonth() + 1).padStart(2, '0')}_${now.getFullYear()}.xlsx`;
   formData.append("file", blob, filename);
 
-  fetch("http://localhost/esp_dashboard/upload_bill.php", {
-    method: "POST",
-    body: formData
-  })
+ fetch("http://localhost/nongtrai.github.io/upload_bill.php", {
+  method: "POST",
+  body: formData
+})
     .then(res => res.json())
     .then(data => {
       if (data.status === "ok") {
