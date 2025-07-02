@@ -219,6 +219,16 @@
 
          // 🟢 Ghi vào localStorage
         saveCurrentBill(billingStart, consumed, bill, startEnergy);
+        function saveCurrentBill(billingStart, consumed, bill, startEnergy) {
+          const dateKey = billingStart.toISOString().slice(0, 10);  // yyyy-mm-dd
+          const key = `bill_${dateKey}`;
+          const value = {
+            energy: consumed.toFixed(2),
+            bill: Math.round(bill),
+            startEnergy: startEnergy.toFixed(2)
+          };
+          localStorage.setItem(key, JSON.stringify(value));
+        }
 
         const priceDiv = document.getElementById("price_display") || document.createElement("div");
         priceDiv.className = "data-row";
