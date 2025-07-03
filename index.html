@@ -260,7 +260,7 @@
       `;
       historyTable.appendChild(row);
       historyRows.push([formatted, device, content.join(" | "), led == 1 ? 'Bật' : 'Tắt']);
-      if (historyTable.rows.length > 30) {
+      if (historyTable.rows.length > 9) {
         historyTable.deleteRow(0);
         historyRows.shift();
       }
