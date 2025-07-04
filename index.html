@@ -194,7 +194,7 @@
         });
 
         const today = new Date();
-        const billingDay = 3;
+        const billingDay = 15;
         const billingStart = today.getDate() >= billingDay
           ? new Date(today.getFullYear(), today.getMonth(), billingDay)
           : new Date(today.getFullYear(), today.getMonth() - 1, billingDay);
