@@ -116,13 +116,14 @@
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
 <script>
+  
   const mqttStatus = document.getElementById("mqttStatus");
   const wifiStatus = document.getElementById("wifiStatus");
   const sensorContainer = document.getElementById("sensorContainer");
   const historyTable = document.getElementById("historyTable");
   const sensors = ["sensor_1", "sensor_2", "sensor_3"];
   const historyRows = [];
-  
+
   sensors.forEach(device => {
     let dataRows = '';
     if (device === "sensor_3") {
@@ -152,6 +153,8 @@
           <div class="time-row">Sản lượng tháng: <span id="monthly_energy_sensor_3">--</span></div>
           <div class="time-row">Chỉ số đầu kỳ tháng này: <span id="start_energy_current">--</span></div>
           <div class="time-row">Chỉ số đầu kỳ tháng trước: <span id="start_energy_prev">--</span></div>
+          <div class="time-row">Đã dùng tháng trước: <span id="prev_energy_used">--</span></div>
+          <div class="time-row">Tiền điện tháng trước: <span id="prev_bill_amount">--</span></div>
         ` : ''}
         <button onclick="controlLed('${device}', 1)">Bật</button>
         <button onclick="controlLed('${device}', 0)">Tắt</button>
@@ -217,9 +220,29 @@
         const billDetail = calculateElectricityCostDetailed(consumed);
         const bill = billDetail.total;
 
-         // 🟢 Ghi vào localStorage
+         // Ghi vào localStorage
         saveCurrentBill(billingStart, consumed, bill, startEnergy);
         function saveCurrentBill(billingStart, consumed, bill, startEnergy) {
+          // ===== Hiển thị thông tin tháng trước nếu có =====
+          const prevStart = new Date(billingStart);
+          prevStart.setMonth(prevStart.getMonth() - 1);
+          const prevKey = `start_energy_${prevStart.toISOString().slice(0, 10)}`;
+          const prevStartEnergy = parseFloat(localStorage.getItem(prevKey));
+          const prevEndEnergy = startEnergy;
+
+          document.getElementById("start_energy_prev").textContent = "0";
+          document.getElementById("prev_energy_used").textContent = "0";
+          document.getElementById("prev_bill_amount").textContent = "0";
+
+          if (!isNaN(prevStartEnergy)) {
+            const prevUsedEnergy = prevEndEnergy - prevStartEnergy;
+            const prevBillDetail = calculateElectricityCostDetailed(prevUsedEnergy);
+            const prevBill = prevBillDetail.total;
+
+            document.getElementById("start_energy_prev").textContent = prevStartEnergy.toFixed(2) + " kWh";
+            document.getElementById("prev_energy_used").textContent = prevUsedEnergy.toFixed(2) + " kWh";
+            document.getElementById("prev_bill_amount").textContent = prevBill.toLocaleString("vi-VN") + " đ";
+          }
           const dateKey = billingStart.toISOString().slice(0, 10);  // yyyy-mm-dd
           const key = `bill_${dateKey}`;
           const value = {
@@ -243,6 +266,26 @@
           Chỉ số đầu tháng: <b>${startEnergy.toFixed(2)} kWh</b> | 
           Đã dùng: <b>${consumed.toFixed(2)} kWh</b> x <b>${(bill / consumed).toFixed(0)} đ/kWh</b> = <b>${bill.toLocaleString()} đ</b>`;
         document.getElementById("box_" + device).appendChild(explainDiv);
+
+        // Hiển thị chi tiết bậc thang
+        let breakdownDiv = document.getElementById("breakdown_display_" + device);
+          if (!breakdownDiv) {
+            breakdownDiv = document.createElement("div");
+            breakdownDiv.id = "breakdown_display_" + device;
+            breakdownDiv.className = "time-row";
+            document.getElementById("box_" + device).appendChild(breakdownDiv);
+          }
+
+        const breakdownHtml = billDetail.breakdown.map((step, index) => {
+          return `Bậc ${index + 1}: <b>${step.usage.toFixed(2)} kWh</b> x 
+            <b>${step.price.toLocaleString("vi-VN")} đ</b> = 
+            <b>${step.cost.toLocaleString("vi-VN")} đ</b>`;
+        }).join("<br>");
+
+        breakdownDiv.innerHTML = `<div style="margin-top: 5px; font-size: 0.9em; color: #555">
+          ${breakdownHtml}
+        </div>`;
+
       } else {
         ["moving", "stationary"].forEach(field => {
           document.getElementById(field + "_" + device).textContent = data[field] ?? "-";
@@ -260,7 +303,7 @@
       `;
       historyTable.appendChild(row);
       historyRows.push([formatted, device, content.join(" | "), led == 1 ? 'Bật' : 'Tắt']);
-      if (historyTable.rows.length > 9) {
+      if (historyTable.rows.length > 6) {
         historyTable.deleteRow(0);
         historyRows.shift();
       }
@@ -353,10 +396,10 @@
   const filename = `bill_${String(now.getMonth() + 1).padStart(2, '0')}_${now.getFullYear()}.xlsx`;
   formData.append("file", blob, filename);
 
- fetch("http://localhost/nongtrai.github.io/upload_bill.php", {
-  method: "POST",
-  body: formData
-})
+  fetch("http://localhost/esp_dashboard/upload_bill.php", {
+    method: "POST",
+    body: formData
+  })
     .then(res => res.json())
     .then(data => {
       if (data.status === "ok") {
